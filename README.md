@@ -30,6 +30,6 @@ The DLL file exposes a C interface, so data need to be transformed to C types as
 ## Compiling Issues
 ### Compile exe
 Simply run `go build -ldflags "-s -w" -o calcSR.exe .\main.go`
-## Compile dll
+### Compile dll
 As Go won't allow two main functions, the `export.go` is uploaded as "build ignore". If you want to compile one go file, then make another one ignored by adding `// +build ignore` in front of `package main` and remove that in the first file.  
 To complie shared libs in Go, you need to install gcc. A commonly-used windows version is [MinGW](https://github.com/niXman/mingw-builds-binaries/releases). Set the bin dir of MinGW to your environment and run `go build -ldflags "-s -w" -buildmode=c-shared -o api.dll .\export.go`.
