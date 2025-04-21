@@ -2,6 +2,7 @@ package osu_parser
 
 import (
 	"bufio"
+	"errors"
 	"os"
 	"strconv"
 	"strings"
@@ -13,14 +14,13 @@ func stringToInt(s string) int {
 }
 
 type Parser struct {
-	filePath     string
-	od           float64
-	columnCount  int
-	columns      []int
-	noteStarts   []int
-	noteEnds     []int
-	noteTypes    []int
-	noteStartsLn []int
+	filePath    string
+	od          float64
+	columnCount int
+	columns     []int
+	noteStarts  []int
+	noteEnds    []int
+	noteTypes   []int
 }
 
 func NewParser(filePath string) *Parser {
@@ -41,25 +41,54 @@ func (p *Parser) Process() error {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
-		p.readMetadata(scanner, line)
+		err := p.readGeneral(scanner, line)
+		if err != nil {
+			return err
+		}
 		p.readOverallDifficulty(line)
 		p.readColumnCount(line)
-		if p.columnCount != -1 {
-			p.readNote(scanner, line)
-		}
+		p.readNote(scanner, line)
+	}
+	err = p.handleErrors()
+	if err != nil {
+		return err
 	}
 	return scanner.Err()
 }
 
-func (p *Parser) readMetadata(scanner *bufio.Scanner, line string) {
-	if strings.Contains(line, "[Metadata]") {
+func (p *Parser) readGeneral(scanner *bufio.Scanner, line string) error {
+	// Add the process to handle general:
+	if strings.Contains(line, "[General]") {
 		for scanner.Scan() {
 			line := scanner.Text()
-			if strings.Contains(line, "Source:") {
-				break
+			line = strings.Trim(line, "\n")
+			line = strings.ReplaceAll(line, " ", "")
+
+			if strings.Contains(line, "Mode:") {
+				mode, _ := strconv.Atoi(strings.SplitN(line, ":", 2)[1])
+				if mode != 3 {
+					return errors.New("not mania mode")
+				} else {
+					return nil
+				}
+			}
+
+			if strings.Contains(line, "[Editor]") {
+				return errors.New("mode not found")
 			}
 		}
+		return errors.New("mode not found")
 	}
+	return nil
+	// Original Garbage
+	// if strings.Contains(line, "[Metadata]") {
+	// 	for scanner.Scan() {
+	// 		line := scanner.Text()
+	// 		if strings.Contains(line, "Source:") {
+	// 			break
+	// 		}
+	// 	}
+	// }
 }
 
 func (p *Parser) readOverallDifficulty(line string) {
@@ -94,7 +123,8 @@ func (p *Parser) readNote(scanner *bufio.Scanner, line string) {
 }
 
 func (p *Parser) parseHitObject(objectLine string) {
-	params := strings.Split(objectLine, ",")
+	stripedString := strings.ReplaceAll(objectLine, " ", "")
+	params := strings.Split(stripedString, ",")
 	if len(params) < 6 {
 		return
 	}
@@ -103,6 +133,12 @@ func (p *Parser) parseHitObject(objectLine string) {
 	xPos, _ := strconv.Atoi(params[0])
 	columnWidth := 512 / p.columnCount
 	column := xPos / columnWidth
+	if column < 0 {
+		column = 0
+	}
+	if column >= p.columnCount {
+		column = p.columnCount - 1
+	}
 	p.columns = append(p.columns, column)
 
 	// Parse note start time
@@ -117,6 +153,22 @@ func (p *Parser) parseHitObject(objectLine string) {
 	endParts := strings.Split(params[5], ":")
 	noteEnd, _ := strconv.Atoi(endParts[0])
 	p.noteEnds = append(p.noteEnds, noteEnd)
+}
+
+func (p *Parser) handleErrors() error {
+	if p.od < 0 {
+		return errors.New("wrong od")
+	}
+	if p.columnCount < 1 {
+		return errors.New("no columns")
+	}
+	if p.columnCount > 10 {
+		return errors.New("over 10 columns not supported")
+	}
+	if len(p.noteStarts) == 0 {
+		return errors.New("no notes")
+	}
+	return nil
 }
 
 func (p *Parser) GetParsedData() (int, []int, []int, []int, []int, float64) {
