@@ -1060,7 +1060,7 @@ func Calculate(filePath, mod string) float64 {
 	// lnSeqByColumn is not used
 	x, K, T, noteSeq, noteSeqByColumn, lnSeq, tailSeq, _, err := preprocessFile(filePath, mod)
 	if err != nil {
-		return 0
+		return -1
 	}
 
 	allCorners, baseCorners, aCorners := getCorners(T, noteSeq)
